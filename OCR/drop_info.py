@@ -1,14 +1,9 @@
-#-*- coding:utf-8 -*-
-
 from aip import AipOcr
 import jieba
 import re
 import sys
 import configparser
 import os
-
-reload(sys) 
-sys.setdefaultencoding('utf-8')
 
 config = configparser.ConfigParser()
 config.read('drop.ini')
@@ -145,7 +140,7 @@ if __name__=='__main__':
             drop_list.append(file)
     with open('result1.txt','w') as rf:
         for item in drop_list:
-            print item
+            print(item)
             key_dicts = get_info(path + '/' + item)
             rf.write(item + '\n')
             rf.write('货号：' + key_dicts['货号'].encode('gbk') + '\n')
