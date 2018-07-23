@@ -17,7 +17,7 @@ def create_pic(url, save_dir):
      shape = get_prototype(pid).shape
      shapes = [translate(shape, x, y) for x, y in centr]
      ax = plt.gca()
-     GeoSeries([base]).plot(ax=ax, color='black')
+     GeoSeries([base]).plot(ax=ax, color='blue')
      GeoSeries(shapes).plot(ax=ax, color='red')
      ax.set_aspect(1)
      plt.axis('off')
@@ -30,19 +30,43 @@ class DataLoader():
         self.data_name = data_name
         self.img_res = img_res
 
-    def load_data(self, num, is_testing=True):
+
+    def load_data(self, num, is_testing=False):
+        init_path = glob('datasets/%s/init/*' % self.data_name)
+        build_path = glob('datasets/%s/building/*' % self.data_name)
+
+        imgs_A, imgs_B = [], []
+        for i in range(num):
+            img_a = self.img_read(build_path[i])
+            img_b = self.img_read(init_path[i])
+
+            img_a = imresize(img_a, self.img_res)
+            img_b = imresize(img_b, self.img_res)
+
+            if not is_testing and np.random.random() > 0.5:
+                img_a = np.fliplr(img_a)
+                img_b = np.fliplr(img_b)
+
+            imgs_A.append(img_a)
+            imgs_B.append(img_b)
+        imgs_A = np.array(imgs_A) / 127.5 - 1
+        imgs_B = np.array(imgs_B) / 127.5 - 1
+
+        return imgs_A, imgs_B
+
+    def load_data_batches(self, num):
         init_path = glob('datasets/%s/init/*' % self.data_name)
         build_path = glob('datasets/%s/building/*' % self.data_name)
 
         for i in range(num):
             imgs_A, imgs_B = [], []
-            img_A = imread(build_path[i])
-            img_B = imread(init_path[i])
+            img_A = self.img_read(build_path[i])
+            img_B = self.img_read(init_path[i])
 
             img_A = imresize(img_A, self.img_res)
             img_B = imresize(img_B, self.img_res)
 
-            if not is_testing and np.random.random() > 0.5:
+            if np.random.random() > 0.5:
                 img_A = np.fliplr(img_A)
                 img_B = np.fliplr(img_B)
 
@@ -84,22 +108,7 @@ class DataLoader():
 
 
 if __name__ == '__main__':
-    # m = 0
-    # n = 2000
-    # for i, line in enumerate(open('data/shenzhen/shenzhen_1.dict')):
-    #     if i < m:
-    #         continue
-    #     if i == n:
-    #         break
-    #     save_dir = 'tmp/' + CITY + '_init_%d.jpg' % i
-    #     plot(line, save_dir)
-    #
-    #     img = np.array(Image.open(save_dir).resize((128, 128)))
-    #     plt.figure()
-    #     plt.imshow(img)
-    #     plt.axis('off')
-    #     plt.savefig('data/init/shenzhen_1_%d.jpg' % i)
-    #     plt.close()
-    #a = load_data(1)
-    None
+    a = DataLoader('shenzhen_1')
+    a.load_data(num=1)
+
 

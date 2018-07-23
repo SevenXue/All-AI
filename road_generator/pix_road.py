@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import time
 from load_data import DataLoader
 from ann_visualizer.visualize import ann_viz
+from keras.callbacks import TensorBoard
 
 
 class PixRoad():
@@ -120,7 +121,6 @@ class PixRoad():
             d = LeakyReLU()(d)
             if bn:
                 d = BatchNormalization(momentum=0.8)(d)
-
             return d
 
         img_A = Input(shape=self.img_shape)
@@ -137,14 +137,16 @@ class PixRoad():
 
         return Model([img_A, img_B], validity)
 
-    def train(self, epochs, batch_size=1, sample_interval=50):
+    def train_batches(self, epochs, num, batch_size=600, sample_interval=50):
         start_time = time.time()
 
         valid = np.ones((batch_size,) + self.disc_patch)
+        print(valid.shape)
         fake = np.zeros((batch_size,) + self.disc_patch)
+        print(fake.shape)
 
         for epoch in range(epochs):
-            for batch_i, (imgs_A, imgs_B) in enumerate(self.data_loader.load_data(800)):
+            for batch_i, (imgs_A, imgs_B) in enumerate(self.data_loader.load_data_batches(num)):
                 fake_A = self.generator.predict(imgs_B)
 
                 # train the discriminator
@@ -156,18 +158,39 @@ class PixRoad():
                 # train then generator
                 g_loss = self.combined.train_on_batch([imgs_A, imgs_B], [valid, imgs_A])
 
+
                 run_time = time.time() - start_time
 
-                print("[Epoch %d/%d] [Batch %d/600] [D loss: %f, acc: %3d%%] [G loss: %f] time: %s" %
+                print("[Epoch %d/%d] [Batch %d/%d] [D loss: %f, acc: %3d%%] [G loss: %f] time: %s" %
                       (epoch, epochs,
-                       batch_i,
+                       batch_i, num,
                        d_loss[0], 100*d_loss[1],
                        g_loss[0],
                        run_time))
                 if batch_i % sample_interval == 0:
                     self.sample_image(epoch, batch_i)
 
+    def train(self, epochs, batch_size=600):
 
+        # create labels
+        valid = np.ones((batch_size,) + self.disc_patch)
+        fake = np.zeros((batch_size,) + self.disc_patch)
+
+        for epoch in range(epochs):
+            print('This is {} times'.format(epoch))
+            imgs_A, imgs_B = self.data_loader.load_data(600)
+
+            fake_A = self.generator.predict(imgs_B)
+
+            # train the discriminator
+            self.discriminator.fit([imgs_A, imgs_B], valid, batch_size=10, shuffle=False)
+            self.discriminator.fit([fake_A, imgs_B], fake, batch_size=10, shuffle=False)
+
+            # train the generator
+            os.makedirs('tensorboard/combined', exist_ok=True)
+            self.combined.fit([imgs_A, imgs_B], [valid, imgs_A],
+                              callbacks=[TensorBoard(log_dir='tensorboard/combined', write_images=True, histogram_freq=1)],
+                              shuffle=False)
 
     def sample_image(self, epoch, batch_i):
         os.makedirs('images/%s' % self.data_name, exist_ok=True)
@@ -191,13 +214,12 @@ class PixRoad():
             axs[i].set_title(titles[cnt])
             axs[i].axis('off')
             cnt += 1
-        #plt.show()
         fig.savefig('images/%s/%d_%d.png' % (self.data_name, epoch, batch_i))
         plt.close()
 
 if __name__ == '__main__':
     gan = PixRoad()
-    gan.train(epochs=40, batch_size=1, sample_interval=200)
+    gan.train(epochs=3, batch_size=600)
 
 
 
