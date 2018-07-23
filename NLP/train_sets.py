@@ -50,4 +50,4 @@ with open(content_url, 'r') as f:
                                     break
                     if tmp != 0:
                         break
-        print nums
+        print(nums)

@@ -14,4 +14,4 @@ with open('./datasets/label/2982501_label.csv', 'r') as f:
     for sm in sms:
         label = sm.strip().split(',')[0]
         if label == '5':
-            print sm.strip().split(',')[1]
+            print(sm.strip().split(',')[1])
