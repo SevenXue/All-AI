@@ -1,6 +1,6 @@
 # -*- coding:utf-8 -*-
 
-#对不同店铺的短信进行打标签
+# 对不同店铺的短信进行打标签
 
 import jieba
 import jieba.analyse
@@ -11,14 +11,14 @@ jieba.analyse.set_stop_words('stop_words.txt')
 jieba.load_userdict("userdict.txt")
 jieba.enable_parallel(4)
 
-#创建存档文件
+# 创建存档文件
 shop_id = 2982501
 content_url = './datasets/' + str(shop_id) + '.csv'
 output = './datasets/label/' + str(shop_id) + '_label.csv'
 key_put = './datasets/keywords/' + str(shop_id) + '_keys.csv'
 time_put = './datasets/times/' + str(shop_id) + '_times.csv'
 
-#打标签
+# 打标签
 with open(content_url, 'r') as f:
     sms = f.readlines()
     label_dict = {0: [u'签收'], 1: [u'上新', u'新品上架'], 2: [u'快递', u'速递', u'速运', u'查收'], 3: [u'双11', u'双十一',u'双12', u'双十二'], 4: [u'成功付款'],
@@ -38,9 +38,9 @@ with open(content_url, 'r') as f:
                             break
                 if tmp != 0:
                     break
-    print nums
+    print(nums)
 
-#分析
+# 分析
 with open(output, 'r') as af:
     sms = af.readlines()
     print(len(sms))
@@ -55,22 +55,22 @@ with open(output, 'r') as af:
         if re.compile(r'\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}').match(send_time):
             hour = time.strptime(send_time, '%Y-%m-%d %H:%M:%S').tm_hour
             time_list[label][hour] += 1
-    print time_list
+    print(time_list)
 
-    #时间统计
+    # 时间统计
     with open(time_put, 'w') as tf:
         tf.write(str(shop_id) + '\n')
         for item in time_list:
             tmp = [str(item[i]) for i in range(len(item))]
             tf.write(','.join(tmp))
             tf.write('\n')
-    #关键字统计
+    # 关键字统计
     with open(key_put, 'w') as ky:
         for j in range(len(label_str)):
             keywords = jieba.analyse.extract_tags(label_str[j], topK=10, withWeight=True, allowPOS=('n', 'vn', 'v'))
-            print 'Label is : ' + str(j)
+            print('Label is : ' + str(j))
             ky.write('label is :' + str(j) + '\n')
             for item in keywords:
-                print item[1], item[0]
-                frq = int(item[1] * 10 )
+                print(item[1], item[0])
+                frq = int(item[1] * 10)
                 ky.write(item[0].encode('utf-8') + ',' + str(frq) + '\n')
