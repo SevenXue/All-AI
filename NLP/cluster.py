@@ -11,15 +11,15 @@ jieba.load_userdict('userdict.txt')
 jieba.enable_parallel()
 
 #kmeans
+key_list = []
 with open('sms_0000.csv', 'r') as f:
     sms = f.readlines()[:10000]
-    key_list = []
     for sm in sms:
         keywords = jieba.analyse.extract_tags(sm, topK=5, withWeight=True, allowPOS=('n','vn','v'))
         keys = []
         for item in keywords:
             keys.append(item[1])
-        while len(keys)<5:
+        while len(keys) < 5:
             keys.append(0)
         key_list.append(keys[:5])
 train = pd.DataFrame(key_list)
@@ -29,7 +29,7 @@ from sklearn.metrics import silhouette_score
 from scipy.spatial.distance import cdist
 from sklearn.manifold import TSNE
 
-train = pd.DataFrame(key_list)
+#train = pd.DataFrame(key_list)
 clusters = [2, 3, 4, 5, 6, 7, 8, 9, 10]
 sc_scores = []
 meandistortions = []

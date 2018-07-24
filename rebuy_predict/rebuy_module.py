@@ -76,7 +76,7 @@ def negatives_generator(raw_file_path):
     raw.columns = ['shop_id', 'buyer_nick', 'num_iid', 'item_id', 'price', 'item_feature',
                        'buyer_feature', 'source_time', 'recent_pay_time', 'bid_num', 'bid_order_num', 'bid_goods_num', 'bid_money_sum','grade']
 
-        # 缺失值处理
+    # 缺失值处理
     raw = raw.sample(frac=0.1)
     raw = raw.replace('\N', np.nan)
     raw.dropna(inplace=True)
@@ -94,7 +94,7 @@ def negatives_generator(raw_file_path):
 
     raw['label'] = 0
 
-        #时间特征处理
+    # 时间特征处理
     raw = to_numeric(raw)
 
     raw = raw.sample(frac=1).reset_index(drop=True)
@@ -105,13 +105,11 @@ def negatives_generator(raw_file_path):
     return raw
 
 
-#生成正样本
+# 生成正样本
 positives = positives_generator('rebuy_all.txt')
-print positives[:5]
        
-#生成负样本
+# 生成负样本
 negatives = negatives_generator('not_rebuy_all.txt')
-print negatives[:5]
 
 #拆分训练集和测试集
 pos_train_num = int(positives.shape[0]*0.8)
@@ -142,6 +140,6 @@ gbdt = GradientBoostingClassifier(
 gbdt.fit(x_train, y_train)
 y_pred = gbdt.predict(x_test)
 
-print gbdt.feature_importances_
+print(gbdt.feature_importances_)
 
-print classification_report(y_test, y_pred)
+print(classification_report(y_test, y_pred))
