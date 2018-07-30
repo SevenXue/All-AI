@@ -12,22 +12,29 @@ import time
 from load_data import DataLoader
 from ann_visualizer.visualize import ann_viz
 from keras.callbacks import TensorBoard
-
+from glob import glob
+from random import choice
 
 class PixRoad():
 
     def __init__(self):
-        self.img_rows = 128
-        self.img_cols = 128
+        self.img_rows = 256
+        self.img_cols = 256
         self.channels = 3
         self.img_shape = (self.img_rows, self.img_cols, self.channels)
 
-        self.data_name = 'shenzhen_1'
+        self.data_name = 'plan'
         self.data_loader = DataLoader(data_name=self.data_name,
                                       img_res=(self.img_cols, self.img_rows))
 
-        # create package of view
+        # url of train and test datasets
+        self.train_urls = glob('datasets/{}/buildings_train'.format(self.data_name))
+        self.test_urls = glob('datasets/{}/buildings_test'.format(self.data_name))
+
+        # create package of view, tensorboard, images
         os.makedirs('view', exist_ok=True)
+        os.makedirs('tensorboard/combined', exist_ok=True)
+        os.makedirs('images/{}'.format(self.data_name), exist_ok=True)
 
         # number of first layer of G and D
         self.gf = 64
@@ -47,7 +54,7 @@ class PixRoad():
             metrics=['accuracy']
         )
         plot_model(self.discriminator, to_file='view/discriminator.png', show_shapes=True)
-        #ann_viz(self.discriminator, view=True, filename='view/discriminator.gv', title='Discriminator')
+        # ann_viz(self.discriminator, view=True, filename='view/discriminator.gv', title='Discriminator')
 
         # build the generator
         self.generator = self.bulid_generator()
@@ -95,21 +102,25 @@ class PixRoad():
 
         d0 = Input(shape=self.img_shape)
 
-        #downsampling
+        # downsampling
         d1 = conv(d0, self.gf, bn=False)
         d2 = conv(d1, self.gf*2)
         d3 = conv(d2, self.gf*4)
         d4 = conv(d3, self.gf*8)
         d5 = conv(d4, self.gf*8)
+        d6 = conv(d5, self.gf*8)
+        d7 = conv(d6, self.gf*8)
 
-        #upsampling
-        u1 = deconv(d5, d4, self.gf*8)
-        u2 = deconv(u1, d3, self.gf*4)
-        u3 = deconv(u2, d2, self.gf*2)
-        u4 = deconv(u3, d1, self.gf)
+        # upsampling
+        u1 = deconv(d7, d6, self.gf*8)
+        u2 = deconv(u1, d5, self.gf*8)
+        u3 = deconv(u2, d4, self.gf*8)
+        u4 = deconv(u3, d3, self.gf*4)
+        u5 = deconv(u4, d2, self.gf*2)
+        u6 = deconv(u5, d1, self.df)
 
-        u5 = UpSampling2D(size=2)(u4)
-        output_img = Conv2D(self.channels, kernel_size=4, strides=1, padding='same', activation='tanh')(u5)
+        u7 = UpSampling2D(size=2)(u6)
+        output_img = Conv2D(self.channels, kernel_size=4, strides=1, padding='same', activation='tanh')(u7)
 
         return Model(d0, output_img)
 
@@ -137,16 +148,17 @@ class PixRoad():
 
         return Model([img_A, img_B], validity)
 
-    def train_batches(self, epochs, num, batch_size=600, sample_interval=50):
+    def train_batches(self, epochs, num, batch_size=1, sample_interval=200):
         start_time = time.time()
 
         valid = np.ones((batch_size,) + self.disc_patch)
-        print(valid.shape)
+
         fake = np.zeros((batch_size,) + self.disc_patch)
-        print(fake.shape)
+
 
         for epoch in range(epochs):
-            for batch_i, (imgs_A, imgs_B) in enumerate(self.data_loader.load_data_batches(num)):
+            for batch_i, (imgs_A, imgs_B) in enumerate(self.data_loader.load_data(self.train_urls, num=num)):
+
                 fake_A = self.generator.predict(imgs_B)
 
                 # train the discriminator
@@ -168,58 +180,72 @@ class PixRoad():
                        g_loss[0],
                        run_time))
                 if batch_i % sample_interval == 0:
-                    self.sample_image(epoch, batch_i)
+                    self.test_image(epoch)
 
-    def train(self, epochs, batch_size=600):
+        self.generator.save_weights('model/plan.h5')
 
+    def train(self, epochs, num, batch_size=10):
+        '''
+
+        :param epochs: 训练循环次数
+        :param batch_size: 训练样本数
+        :return:
+        '''
         # create labels
         valid = np.ones((batch_size,) + self.disc_patch)
         fake = np.zeros((batch_size,) + self.disc_patch)
 
-        for epoch in range(epochs):
-            print('This is {} times'.format(epoch))
-            imgs_A, imgs_B = self.data_loader.load_data(600)
+        # 训练集
+        imgs_A, imgs_B = self.data_loader.load_data(self.train_urls, num=num)
 
+        for epoch in range(epochs):
             fake_A = self.generator.predict(imgs_B)
+
+            # 验证集
+            test_A, test_B = self.data_loader.load_data(self.test_urls)
+            test_valid = np.ones((len(test_A),) + self.disc_patch)
 
             # train the discriminator
             self.discriminator.fit([imgs_A, imgs_B], valid, batch_size=10, shuffle=False)
             self.discriminator.fit([fake_A, imgs_B], fake, batch_size=10, shuffle=False)
 
             # train the generator
-            os.makedirs('tensorboard/combined', exist_ok=True)
-            self.combined.fit([imgs_A, imgs_B], [valid, imgs_A],
+            self.combined.fit([imgs_A, imgs_B], [valid, imgs_A], epochs=200, batch_size=10, verbose=1,
                               callbacks=[TensorBoard(log_dir='tensorboard/combined', write_images=True, histogram_freq=1)],
-                              shuffle=False)
+                              validation_data=([test_A, test_B], [test_valid, test_A]))
 
-    def sample_image(self, epoch, batch_i):
-        os.makedirs('images/%s' % self.data_name, exist_ok=True)
+            # save the weights
+            self.generator.save_weights('model/plan_1.h5')
 
-        imgs_A, imgs_B = self.data_loader.test_data(800)
-        # imgs_B = None
+            # test and visualization
+            self.test_image(epoch)
+
+    def test_image(self, epoch):
+        imgs_A, imgs_B = self.data_loader.load_data(self.test_urls)
+
+
+        # self.generator.load_weights('model/plan.h5')
         fake_A = self.generator.predict(imgs_B)
 
         gen_imgs = np.concatenate([imgs_B, imgs_A, fake_A])
 
         gen_imgs = 0.5 * gen_imgs + 0.5
 
-        #print(len(gen_imgs))
+        gen_imgs = choice(gen_imgs)
 
         titles = ['Conditions', 'Original', 'Generated']
 
         fig, axs = plt.subplots(3, 1)
-        cnt = 0
         for i in range(3):
-            axs[i].imshow(gen_imgs[cnt])
-            axs[i].set_title(titles[cnt])
+            axs[i].imshow(gen_imgs[i])
+            axs[i].set_title(titles[i])
             axs[i].axis('off')
-            cnt += 1
-        fig.savefig('images/%s/%d_%d.png' % (self.data_name, epoch, batch_i))
-        plt.close()
+
+        fig.savefig('images/%s/%d.png' % (self.data_name, epoch))
 
 if __name__ == '__main__':
     gan = PixRoad()
-    gan.train(epochs=3, batch_size=600)
+    gan.train_batches(200, 600)
 
 
 
