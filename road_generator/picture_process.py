@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-
+from glob import glob
 def adjust_endpoint(x, y, img, kernel=4):
     """
         通过计算邻域内是否有点，判断坐标点是否为端点
@@ -27,7 +27,7 @@ def distance(pnta, pntb):
 
 def ring_road(points, img):
     """
-        dijkstra算法，生成环路
+        生成环路
     :param points: endpoints
     :param img: 用于画图的图像
     :return: points
@@ -39,13 +39,11 @@ def ring_road(points, img):
         item = finished_points[-1]
         tmp_point = points[0]
         mini = distance(item, tmp_point)
-        #for item in finished_points:
 
         for point in points:
             if distance(item, point) < mini:
                 mini = distance(item, point)
                 tmp_point = point
-                #tmp_item = item
 
         cv2.line(img, item, tmp_point, (0, 255, 0), 2)
         finished_points.append(tmp_point)
@@ -56,7 +54,7 @@ def ring_road(points, img):
 
 def collect_point(img):
     """
-        集成所有端点
+        扫描得到所有的点，用于连接成环路
     :param img:
     :return: Points
     """
@@ -68,49 +66,62 @@ def collect_point(img):
     points = []
 
     # 初始化边界点
-    inital = (corners[0].ravel())
-    left_point = inital
-    right_point = inital
-    up_point = inital
-    down_point = inital
+    # inital = (corners[0].ravel())
+    # left_point = inital
+    # right_point = inital
+    # up_point = inital
+    # down_point = inital
 
     for corner in corners:
         x, y = corner.ravel()
-        if adjust_endpoint(y, x, mask, kernel=4):
-            points.append((x, y))
-        if x < left_point[0]:
-            left_point = (x, y)
-        if x > right_point[0]:
-            right_point = (x, y)
-        if y < down_point[1]:
-            down_point = (x, y)
-        if y > up_point[1]:
-            up_point = (x, y)
-    for point in [left_point, right_point, up_point, down_point]:
-        if point not in points:
-            points.append(point)
-    print(left_point, right_point, up_point, down_point)
-    print(points)
+    #     if adjust_endpoint(y, x, mask, kernel=4):
+    #         points.append((x, y))
+    #     if x < left_point[0]:
+    #         left_point = (x, y)
+    #     if x > right_point[0]:
+    #         right_point = (x, y)
+    #     if y < down_point[1]:
+    #         down_point = (x, y)
+    #     if y > up_point[1]:
+    #         up_point = (x, y)
+    # for point in [left_point, right_point, up_point, down_point]:
+    #     if point not in points:
+    #         points.append(point)
+        points.append((x, y))
     return points
 
 if __name__ == '__main__':
-    frame = cv2.imread('generator.jpg')
+    urls = glob('generator/*')
+    for url in urls:
+        print(url)
+        frame = cv2.imread(url)
 
-    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-    lower_green = np.array([35, 43, 46])
-    upper_green = np.array([77, 255, 255])
+        hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
 
-    mask = cv2.inRange(hsv, lower_green, upper_green)
-    res = cv2.bitwise_and(frame, frame, mask=mask)
+        #提取红色、蓝色、绿色
+        lower_red = np.array([0, 43, 46])
+        upper_red = np.array([10, 255, 255])
+        red_mask = cv2.inRange(hsv, lower_red, upper_red)
+        red_img = cv2.bitwise_and(frame, frame, mask=red_mask)
 
-    points = collect_point(res)
+        lower_blue = np.array([100, 43, 46])
+        upper_blue = np.array([124, 255, 255])
+        blue_mask = cv2.inRange(hsv, lower_blue, upper_blue)
+        blue_img = cv2.bitwise_and(frame, frame, mask=blue_mask)
 
-    points = ring_road(points, res)
+        lower_green = np.array([35, 43, 46])
+        upper_green = np.array([77, 255, 255])
+        mask = cv2.inRange(hsv, lower_green, upper_green)
+        green_img = cv2.bitwise_and(frame, frame, mask=mask)
 
-    cv2.imshow('res', res)
+        points = collect_point(green_img)
 
-    cv2.waitKey(0) & 0xFF
-    cv2.destroyAllWindows()
+        ring_road(points, green_img)
+
+        cv2.imshow('res', cv2.add(frame, green_img))
+
+        cv2.waitKey(0) & 0xFF
+        cv2.destroyAllWindows()
 
 
 
