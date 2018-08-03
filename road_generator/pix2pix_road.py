@@ -170,7 +170,6 @@ class PixRoad():
                 # train then generator
                 g_loss = self.combined.train_on_batch([imgs_A, imgs_B], [valid, imgs_A])
 
-
                 run_time = time.time() - start_time
 
                 print("[Epoch %d/%d] [Batch %d/%d] [D loss: %f, acc: %3d%%] [G loss: %f] time: %s" %
@@ -222,7 +221,6 @@ class PixRoad():
 
     def test_image(self, epoch):
         imgs_A, imgs_B = self.data_loader.load_data(self.test_urls)
-
 
         # self.generator.load_weights('model/plan.h5')
         fake_A = self.generator.predict(imgs_B)
