@@ -1,10 +1,11 @@
 import numpy as np
-import matplotlib.pyplot as plt
 from glob import glob
 from scipy.misc import imresize, imread
-import random
 
 class DataLoader():
+    """
+        数据处理
+    """
 
     def __init__(self, data_name, img_res=(256, 256)):
         self.data_name = data_name
@@ -13,9 +14,29 @@ class DataLoader():
     @staticmethod
     def resize_picture(url, shapes):
         img = imread(url, mode='RGB').astype(np.float)
-        img = imread(img, shapes)
+        img = imresize(img, shapes)
         return img
 
+    def load_batch(self, num):
+        path = glob('datasets/{}/buildings_train/*'.format(self.data_name))
+
+        for i in range(num):
+            imgs_A, imgs_B = [], []
+
+            img_a = self.resize_picture(path[i], self.img_res)
+            img_b = self.resize_picture(path[i].replace('buildings_train', 'init'), self.img_res)
+
+            if np.random.random() > 0.5:
+                img_a = np.fliplr(img_a)
+                img_b = np.fliplr(img_b)
+
+            imgs_A.append(img_a)
+            imgs_B.append(img_b)
+
+            imgs_A = np.array(imgs_A) / 127.5 - 1
+            imgs_B = np.array(imgs_B) / 127.5 - 1
+
+            yield imgs_A, imgs_B
 
     def load_data(self, urls, num=0):
         '''
@@ -35,10 +56,6 @@ class DataLoader():
             img_a = self.resize_picture(road_url, self.img_res)
             img_b = self.resize_picture(init_url, self.img_res)
 
-            if np.random.random() > 0.5:
-                img_a = np.fliplr(img_a)
-                img_b = np.fliplr(img_b)
-
             imgs_A.append(img_a)
             imgs_B.append(img_b)
 
@@ -50,4 +67,4 @@ class DataLoader():
 
 if __name__ == '__main__':
     a = DataLoader('shenzhen_1')
-    a.load_data(num=1)
+

@@ -13,10 +13,12 @@ from load_data import DataLoader
 from ann_visualizer.visualize import ann_viz
 from keras.callbacks import TensorBoard
 from glob import glob
-from random import choice
+from process_pic import *
 
 class PixRoad():
-
+    """
+        pix2pix，生成道路
+    """
     def __init__(self):
         self.img_rows = 256
         self.img_cols = 256
@@ -28,13 +30,13 @@ class PixRoad():
                                       img_res=(self.img_cols, self.img_rows))
 
         # url of train and test datasets
-        self.train_urls = glob('datasets/{}/buildings_train'.format(self.data_name))
-        self.test_urls = glob('datasets/{}/buildings_test'.format(self.data_name))
+        self.train_urls = glob(f'datasets/{self.data_name}/buildings_train/*')
+        self.test_urls = glob(f'datasets/{self.data_name}/buildings_test/*')
 
         # create package of view, tensorboard, images
         os.makedirs('view', exist_ok=True)
-        os.makedirs('tensorboard/combined', exist_ok=True)
-        os.makedirs('images/{}'.format(self.data_name), exist_ok=True)
+        os.makedirs('tensorboard/combined_5', exist_ok=True)
+        os.makedirs('images/plan_5', exist_ok=True)
 
         # number of first layer of G and D
         self.gf = 64
@@ -78,7 +80,6 @@ class PixRoad():
 
 
     def bulid_generator(self):
-        """U-net Generator"""
 
         def conv(input_layer, filters, f_size=4, bn=True):
 
@@ -86,7 +87,6 @@ class PixRoad():
             d = LeakyReLU()(d)
             if bn:
                 d = BatchNormalization(momentum=0.8)(d)
-
             return d
 
         def deconv(input_layer, skip_input, filters, f_size=4, dropout_rate=0):
@@ -97,7 +97,6 @@ class PixRoad():
                 u = Dropout(dropout_rate)(u)
             u = BatchNormalization(momentum=0.8)(u)
             u = Concatenate()([u, skip_input])
-
             return u
 
         d0 = Input(shape=self.img_shape)
@@ -108,19 +107,19 @@ class PixRoad():
         d3 = conv(d2, self.gf*4)
         d4 = conv(d3, self.gf*8)
         d5 = conv(d4, self.gf*8)
-        d6 = conv(d5, self.gf*8)
-        d7 = conv(d6, self.gf*8)
+        #d6 = conv(d5, self.gf*8)
+        #d7 = conv(d6, self.gf*8)
 
         # upsampling
-        u1 = deconv(d7, d6, self.gf*8)
-        u2 = deconv(u1, d5, self.gf*8)
-        u3 = deconv(u2, d4, self.gf*8)
-        u4 = deconv(u3, d3, self.gf*4)
-        u5 = deconv(u4, d2, self.gf*2)
-        u6 = deconv(u5, d1, self.df)
+        u1 = deconv(d5, d4, self.gf*8)
+        u2 = deconv(u1, d3, self.gf*4)
+        u3 = deconv(u2, d2, self.gf*2)
+        u4 = deconv(u3, d1, self.gf)
+        #u5 = deconv(u4, d1, self.gf)
+        #u6 = deconv(u5, d1, self.df)
 
-        u7 = UpSampling2D(size=2)(u6)
-        output_img = Conv2D(self.channels, kernel_size=4, strides=1, padding='same', activation='tanh')(u7)
+        u5 = UpSampling2D(size=2)(u4)
+        output_img = Conv2D(self.channels, kernel_size=4, strides=1, padding='same', activation='tanh')(u5)
 
         return Model(d0, output_img)
 
@@ -148,7 +147,7 @@ class PixRoad():
 
         return Model([img_A, img_B], validity)
 
-    def train_batches(self, epochs, num, batch_size=1, sample_interval=200):
+    def train_batches(self, epochs, num, batch_size=1, sample_interval=150):
         start_time = time.time()
 
         valid = np.ones((batch_size,) + self.disc_patch)
@@ -157,7 +156,7 @@ class PixRoad():
 
 
         for epoch in range(epochs):
-            for batch_i, (imgs_A, imgs_B) in enumerate(self.data_loader.load_data(self.train_urls, num=num)):
+            for batch_i, (imgs_A, imgs_B) in enumerate(self.data_loader.load_batch(num)):
 
                 fake_A = self.generator.predict(imgs_B)
 
@@ -179,58 +178,19 @@ class PixRoad():
                        g_loss[0],
                        run_time))
                 if batch_i % sample_interval == 0:
-                    self.test_image(epoch)
+                    self.sample_image(epoch, batch_i)
 
-        self.generator.save_weights('model/plan.h5')
+            self.generator.save_weights('model/plan_5.h5')
 
-    def train(self, epochs, num, batch_size=10):
-        '''
 
-        :param epochs: 训练循环次数
-        :param batch_size: 训练样本数
-        :return:
-        '''
-        # create labels
-        valid = np.ones((batch_size,) + self.disc_patch)
-        fake = np.zeros((batch_size,) + self.disc_patch)
+    def sample_image(self, epoch, batch_i):
+        imgs_A, imgs_B = self.data_loader.load_data(self.test_urls, num=1)
 
-        # 训练集
-        imgs_A, imgs_B = self.data_loader.load_data(self.train_urls, num=num)
-
-        for epoch in range(epochs):
-            fake_A = self.generator.predict(imgs_B)
-
-            # 验证集
-            test_A, test_B = self.data_loader.load_data(self.test_urls)
-            test_valid = np.ones((len(test_A),) + self.disc_patch)
-
-            # train the discriminator
-            self.discriminator.fit([imgs_A, imgs_B], valid, batch_size=10, shuffle=False)
-            self.discriminator.fit([fake_A, imgs_B], fake, batch_size=10, shuffle=False)
-
-            # train the generator
-            self.combined.fit([imgs_A, imgs_B], [valid, imgs_A], epochs=200, batch_size=10, verbose=1,
-                              callbacks=[TensorBoard(log_dir='tensorboard/combined', write_images=True, histogram_freq=1)],
-                              validation_data=([test_A, test_B], [test_valid, test_A]))
-
-            # save the weights
-            self.generator.save_weights('model/plan_1.h5')
-
-            # test and visualization
-            self.test_image(epoch)
-
-    def test_image(self, epoch):
-        imgs_A, imgs_B = self.data_loader.load_data(self.test_urls)
-
-        # self.generator.load_weights('model/plan.h5')
         fake_A = self.generator.predict(imgs_B)
 
         gen_imgs = np.concatenate([imgs_B, imgs_A, fake_A])
 
         gen_imgs = 0.5 * gen_imgs + 0.5
-
-        gen_imgs = choice(gen_imgs)
-
         titles = ['Conditions', 'Original', 'Generated']
 
         fig, axs = plt.subplots(3, 1)
@@ -239,11 +199,38 @@ class PixRoad():
             axs[i].set_title(titles[i])
             axs[i].axis('off')
 
-        fig.savefig('images/%s/%d.png' % (self.data_name, epoch))
+        fig.savefig(f'images/plan_5/{epoch}_{batch_i}.png')
+
+    def test(self):
+        for item in ['original_5', 'condition_5', 'generator_5']:
+            os.makedirs('images/{}'.format(item), exist_ok=True)
+
+        imgs_a, imgs_b = self.data_loader.load_data(gan.test_urls)
+
+        self.generator.load_weights('model/plan_5.h5')
+
+        fake_a = self.generator.predict(imgs_b)
+
+        imgs_a = 0.5 * imgs_a + 0.5
+        imgs_b = 0.5 * imgs_b + 0.5
+        fake_a = 0.5 * fake_a + 0.5
+
+        for i in range(len(imgs_a)):
+            original_url = f'images/original_5/{i}.jpg'
+            condition_url = f'images/condition_5/{i}.jpg'
+            generator_url = f'images/generator_5/{i}.jpg'
+            self.save_pic(imgs_a[i], original_url)
+            self.save_pic(imgs_b[i], condition_url)
+            self.save_pic(fake_a[i], generator_url)
+
+
+    @staticmethod
+    def save_pic(data, url):
+        ax = plt.gca()
+        ax.imshow(data)
+        ax.axis('off')
+        plt.savefig(url)
+        plt.close()
 
 if __name__ == '__main__':
     gan = PixRoad()
-    gan.train_batches(200, 600)
-
-
-
