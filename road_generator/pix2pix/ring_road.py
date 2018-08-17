@@ -1,3 +1,5 @@
+#! 遗传算法生成环路
+
 import numpy as np
 import random
 import operator
