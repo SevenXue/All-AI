@@ -15,10 +15,10 @@ def adjust_endpoint(x, y, img, kernel=4):
     :param kernel: radius of neighbourhood
     :return: boolean
     """
-    up_img = sum(sum(img[x-kernel:x+kernel, y:y+kernel])) / 255
-    down_img = sum(sum(img[x-kernel:x+kernel, y-kernel:y])) / 255
-    left_img = sum(sum(img[x-kernel:x, y-kernel: kernel])) / 255
-    right_img = sum(sum(img[x:x+kernel, y-kernel:y+kernel])) / 255
+    up_img = img[x-kernel:x+kernel, y:y+kernel].sum() / 255
+    down_img = img[x-kernel:x+kernel, y-kernel:y].sum() / 255
+    left_img = img[x-kernel:x, y-kernel: kernel].sum() / 255
+    right_img = img[x:x+kernel, y-kernel:y+kernel].sum() / 255
     tmp = 1
     if up_img > tmp and down_img > tmp:
         return False
@@ -102,18 +102,14 @@ def reload_pic(url):
     # city_list = [Point(x=item[0], y=item[1]) for item in points]
     #
     # points = genetic_algorithm(population=city_list, pop_size=100, elite_size=20, mutation_rate=0.01, generations=500)
-    cv2.imwrite(url.replace('generator_6', 'generator_ga_6'), cv2.add(frame, road_pic))
+    cv2.imwrite(url.replace('generator', 'generator_vor'), cv2.add(frame, road_pic))
     return None
 
 
 if __name__ == '__main__':
-    urls = glob('images/generator_6/*')
-    os.makedirs('images/generator_ga_6', exist_ok=True)
+    urls = glob('generator/*')
+    os.makedirs('generator_vor', exist_ok=True)
     for url in urls:
         reload_pic(url)
     # url = 'images/generator_6/8.jpg'
     # reload_pic(url)
-
-
-
-
