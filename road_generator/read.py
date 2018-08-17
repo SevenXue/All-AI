@@ -6,9 +6,9 @@ from geopandas import GeoSeries
 import os
 
 SAVE_DIR = 'datasets/plan'
-init = SAVE_DIR + '/init'
+init_dir = SAVE_DIR + '/init'
 building_dir = SAVE_DIR + '/buildings'
-os.makedirs(init, exist_ok=True)
+os.makedirs(init_dir, exist_ok=True)
 os.makedirs(building_dir, exist_ok=True)
 
 class Building:
@@ -27,8 +27,8 @@ def show_road(dataset):
     if len(dataset["blocks"]) > 1:
         return None
     base_shapes = Polygon(dataset["blocks"][0]["coords"])
-    id = dataset['plan_id']
-    print(id)
+    # id = dataset['plan_id']
+    # print(id)
     buildings = []
     building_shapes = []
     for block in dataset["blocks"]:
@@ -49,13 +49,14 @@ def show_road(dataset):
         GeoSeries(building_shapes).plot(ax=ax, color='red')
         GeoSeries(road_line).plot(ax=ax, color='green', linewidth=4.0)
         plt.axis('off')
-        plt.savefig(building_dir + '/' + str(id) + '.jpg')
+        plt.savefig(init_dir + '/' + str(id) + '.jpg')
+
         plt.close()
 
 def test():
     with open('plans.txt') as plan:
         pl = plan.readlines()
-        for line in pl[12259:]:
+        for line in pl:
             single_data = eval(line.strip('\n'))
             show_road(single_data)
 

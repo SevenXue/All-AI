@@ -107,16 +107,16 @@ class PixRoad():
         d3 = conv(d2, self.gf*4)
         d4 = conv(d3, self.gf*8)
         d5 = conv(d4, self.gf*8)
-        #d6 = conv(d5, self.gf*8)
-        #d7 = conv(d6, self.gf*8)
+        # d6 = conv(d5, self.gf*8)
+        # d7 = conv(d6, self.gf*8)
 
         # upsampling
         u1 = deconv(d5, d4, self.gf*8)
         u2 = deconv(u1, d3, self.gf*4)
         u3 = deconv(u2, d2, self.gf*2)
         u4 = deconv(u3, d1, self.gf)
-        #u5 = deconv(u4, d1, self.gf)
-        #u6 = deconv(u5, d1, self.df)
+        # u5 = deconv(u4, d1, self.gf)
+        # u6 = deconv(u5, d1, self.df)
 
         u5 = UpSampling2D(size=2)(u4)
         output_img = Conv2D(self.channels, kernel_size=4, strides=1, padding='same', activation='tanh')(u5)
@@ -205,7 +205,7 @@ class PixRoad():
         for item in ['original_5', 'condition_5', 'generator_5']:
             os.makedirs('images/{}'.format(item), exist_ok=True)
 
-        imgs_a, imgs_b = self.data_loader.load_data(gan.test_urls)
+        imgs_a, imgs_b = self.data_loader.load_data(self.test_urls)
 
         self.generator.load_weights('model/plan_5.h5')
 

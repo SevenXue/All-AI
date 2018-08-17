@@ -38,7 +38,7 @@ class DataLoader():
 
             yield imgs_A, imgs_B
 
-    def load_data(self, urls, num=0):
+    def load_data(self, urls, num=1):
         '''
             create the datasets
         :param num: the batch of datasets
