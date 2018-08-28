@@ -27,8 +27,6 @@ def show_road(dataset):
     if len(dataset["blocks"]) > 1:
         return None
     base_shapes = Polygon(dataset["blocks"][0]["coords"])
-    # id = dataset['plan_id']
-    # print(id)
     buildings = []
     building_shapes = []
     for block in dataset["blocks"]:
