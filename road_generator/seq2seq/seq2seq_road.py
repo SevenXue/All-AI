@@ -7,39 +7,81 @@ from shapely.geometry import Polygon, LineString
 from matplotlib import pyplot as plt
 from geopandas import GeoSeries
 import cv2
+import os
+
+os.makedirs('model', exist_ok=True)
+os.makedirs('tensorboard', exist_ok=True)
+os.makedirs('datasets', exist_ok=True)
 
 EPOCHS = 500
 latent_dim = 256
-data_url = 'train_data.txt'
-weight_name = 's2s_rich_256.h5'
+data_url = 'datasets/train_data.txt'
+model_file = 'model/s2s_rich_256.h5'
 
 class Seq2seq():
 
-    def __init__(self, epochs, latent_dim, url):
-        self.epochs = epochs
+    def __init__(self, epochs, latent_dim):
+        # self.epochs = epochs
         self.latent_dim = latent_dim
-        self.data_url = url
         self.max_encoder_length = 49
         self.max_decoder_length = 17
-        self.encoder_data, self.slope, self.inter = self.set_x(self.data_url)
-        self.decoder_data = self.set_y(self.data_url)
 
         # seq2seq
         self.model = AttentionSeq2Seq(batch_input_shape=(None, self.max_encoder_length, 2), hidden_dim=self.latent_dim, output_dim=2,
                                       output_length=self.max_decoder_length, depth=3)
 
-        # self.model.load_weights(weight_name)
         self.model.compile(loss='mse', loss_weights=[200], optimizer='rmsprop')
-        # plot_model(self.model, to_file='seq2seq.png', show_shapes=True)
-        self.model.fit(self.encoder_data, self.decoder_data, batch_size=8, epochs=EPOCHS,
-                       callbacks=[TensorBoard(log_dir='tensorboard/seq_4')])
-        self.model.save_weights(weight_name)
+
+        if os.path.exists(model_file):
+            self.model.load_weights(model_file)
+        else:
+            print('Model needs to train.')
+
+    def train(self):
+        if os.path.exists(data_url):
+            encoder_data, slope, inter = self.set_x(data_url)
+            decoder_data = self.set_y(data_url)
+            self.model.fit(encoder_data, decoder_data, batch_size=8, epochs=EPOCHS,
+                           callbacks=[TensorBoard(log_dir='tensorboard/seq_5')])
+            self.model.save_weights(model_file)
+        else:
+            raise ValueError('data is not existing.')
+
+    @staticmethod
+    def sort_paths(endpoints):
+        '''
+            对点进行逆时针排序
+        :param endpoints:
+        :return:
+        '''
+        x1 = []
+        x2 = []
+        x3 = []
+        x4 = []
+        for i in range(len(endpoints)):
+            if endpoints[i][0] > 0 and endpoints[i][1] > 0:
+                x1.append(endpoints[i])
+            elif endpoints[i][0] < 0 and endpoints[i][1] > 0:
+                x2.append(endpoints[i])
+            elif endpoints[i][0] < 0 and endpoints[i][1] < 0:
+                x3.append(endpoints[i])
+            elif endpoints[i][0] > 0 and endpoints[i][1] < 0:
+                x4.append(endpoints[i])
+
+        x1.sort(key=lambda x: (x[1] / x[0]))
+        x2.sort(key=lambda x: (x[1] / x[0]))
+        x3.sort(key=lambda x: (x[1] / x[0]))
+        x4.sort(key=lambda x: (x[1] / x[0]))
+
+        points = x1 + x2 + x3 + x4
+
+        return points
 
     def set_x(self, url):
         """
-            对数据进行归一化
-        :param url: 数据地址
-        :return: data
+            对x进行预处理
+        :param url: str
+        :return: np.array
         """
         inputs_data = []
 
@@ -73,6 +115,7 @@ class Seq2seq():
                     x, y = zip(*building)
                     center_buildings.append([np.mean(x), np.mean(y)])
 
+                # 逆时针排序
                 center_buildings = self.sort_paths(center_buildings)
 
                 # 对建筑进行归一化处理
@@ -80,6 +123,7 @@ class Seq2seq():
                     center[0] = (center[0] - x_min) / (x_max - x_min)
                     center[1] = (center[1] - y_min) / (y_max - x_min)
                 inputs_data.append(center_buildings)
+
                 # # 对建筑进行外接 + 归一化处理
                 # self.buildings = data['buildings']
                 # center_buildings = []
@@ -90,6 +134,7 @@ class Seq2seq():
                 #         x = (box[i][0] - x_min) / (x_max - x_min)
                 #         y = (box[i][1] - y_min) / (y_max - y_min)
                 #         center_buildings.append([x, y])
+
         num = len(inputs_data)
         self.max_encoder_length = max([max([len(inputs) for inputs in inputs_data]), self.max_encoder_length])
 
@@ -105,13 +150,18 @@ class Seq2seq():
         return encoder_data, np.array(slope), np.array(inter)
 
     def set_y(self, url):
+        '''
+            对y进行预处理
+        :param url: str,
+        :return: np.array
+        '''
         output_data = []
         with open(url, 'r') as plan:
             pl = plan.readlines()
 
             for line in pl:
                 data = eval(line.strip('\n'))
-                self.id = data['id']
+                # self.id = data['id']
 
                 # 用于max_min归一化
                 base_shapes = data['block']
@@ -143,7 +193,6 @@ class Seq2seq():
             for i in range(num):
                 for k in range(len(output_data[i])):
                     decoder_data[i, k] = output_data[i][k]
-
         return decoder_data
 
     def reset_data(self, datasets, slope, inter):
@@ -171,39 +220,11 @@ class Seq2seq():
         :param pre_data:
         :return:
         '''
-        self.model.load_weights(weight_name)
+        self.model.load_weights(model_file)
         result = self.model.predict(pre_data)
         return result
 
-    @staticmethod
-    def sort_paths(endpoints):
-        '''
-            对道路点进行逆时针排序
-        :param endpoints:
-        :return:
-        '''
-        x1 = []
-        x2 = []
-        x3 = []
-        x4 = []
-        for i in range(len(endpoints)):
-            if endpoints[i][0] > 0 and endpoints[i][1] > 0:
-                x1.append(endpoints[i])
-            elif endpoints[i][0] < 0 and endpoints[i][1] > 0:
-                x2.append(endpoints[i])
-            elif endpoints[i][0] < 0 and endpoints[i][1] < 0:
-                x3.append(endpoints[i])
-            elif endpoints[i][0] > 0 and endpoints[i][1] < 0:
-                x4.append(endpoints[i])
 
-        x1.sort(key=lambda x: (x[1] / x[0]))
-        x2.sort(key=lambda x: (x[1] / x[0]))
-        x3.sort(key=lambda x: (x[1] / x[0]))
-        x4.sort(key=lambda x: (x[1] / x[0]))
-
-        points = x1 + x2 + x3 + x4
-
-        return points
 
     @staticmethod
     def show_picture(id, base_shapes, buildings, init_points, generator_points):
@@ -248,18 +269,9 @@ class Seq2seq():
         plt.axis('off')
         plt.show()
 
-    @staticmethod
-    def reset_endpoints(points):
-        for i in range(len(points)):
-            if points[i][0] == 0:
-                del points[i]
-        points.append(points[0])
-
-        return points
-
-    def test(self):
-        test_data, slope, inter = self.set_x('test_data.txt')
-        line_data = self.set_y('test_data.txt')
+    def test(self, test_url):
+        test_data, slope, inter = self.set_x(test_url)
+        line_data = self.set_y(test_url)
         predict_data = self.predict(test_data)
         predict_paths = self.reset_data(predict_data, slope, inter)
         init_paths = self.reset_data(line_data, slope, inter)
@@ -267,5 +279,5 @@ class Seq2seq():
             self.show_picture(self.id, self.multi_bases[i], self.multi_buildings[i], init_paths[i], predict_paths[i])
 
 if __name__ == '__main__':
-    seq = Seq2seq(EPOCHS, latent_dim, data_url)
-    # seq.test()
+    seq = Seq2seq(EPOCHS, latent_dim)
+    seq.test('datasets/test_data.txt')
