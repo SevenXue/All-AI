@@ -8,7 +8,7 @@ import re
 
 SAVE_DIR = 'datasets/'
 init_dir = SAVE_DIR + 'init'
-building_dir = SAVE_DIR + 'road'
+building_dir = SAVE_DIR + 'ai_road'
 os.makedirs(init_dir, exist_ok=True)
 os.makedirs(building_dir, exist_ok=True)
 
@@ -19,12 +19,13 @@ class Building:
         self.floor_height = floor_height
         self.floor_number = floor_number
 
-def show_road(dataset):
+def create_data_of_ring_road(dataset):
     """
         根据数据生成道路图
     :param dataset: 原始数据
     :return: None
     """
+
     arrangment = {}
     if len(dataset["blocks"]) > 1:
         return None
@@ -45,7 +46,6 @@ def show_road(dataset):
             building_shapes.append(Polygon(building["coords"]))
     generator = InnerCircleRoadGenerator(base_shapes, buildings=buildings)
 
-    # save the picture
     if generator.is_fit_to_generate_circle_roads():
         road_line = generator.generate_roads()
         fig = plt.figure(figsize=(5, 5))
@@ -66,25 +66,42 @@ def show_road(dataset):
                 if item not in endpoints:
                     endpoints.append(item)
         arrangment['lines'] = endpoints
-        with open('select_plan.txt', 'a+') as lp:
+
+        with open('datasets/select_plan.txt', 'a+') as lp:
             lp.write(str(arrangment) + '\n')
 
-def road_data():
+def filter_data_by_generate_road(url):
     '''
         通过道路生成筛选数据
     :return:
     '''
-    with open('plans.txt') as plan:
+    ids = []
+    with open('datasets/plans.txt', 'r') as pl:
+        datas = pl.readlines()
+        for data in datas:
+            data = eval(data)
+            if data['plan_id'] not in ids:
+                ids.append(data['plan_id'])
+    with open('datasets/plans_ordered.txt', 'r') as po:
+        datas = po.readlines()
+        for data in datas:
+            data = eval(data)
+            if data['plan_id'] not in ids:
+                ids.append(data['plan_id'])
+
+
+    with open(url, 'r') as plan:
         pl = plan.readlines()
-        for i in range(len(pl)):
+        for i in range(len(pl[:])):
             print(i)
             single_data = eval(pl[i].strip('\n'))
-            show_road(single_data)
+            if single_data['plan_id'] not in ids:
+                create_data_of_ring_road(single_data)
 
-def choose_data(url):
+def filter_data_by_choose_picture(url):
     '''
-        人工筛选数据
-    :param url:
+        人工筛选图片，挑选数据
+    :param url:str
     :return:
     '''
     datasets = glob(url)
@@ -95,18 +112,19 @@ def choose_data(url):
         if id not in ids:
             ids.append(id)
 
-    with open('select_plan.txt', 'r') as lp:
+    with open('datasets/select_plan.txt', 'r') as lp:
         paths = lp.readlines()
         for path in paths:
             path = eval(path)
             if str(path['id']) in ids:
                 ids.remove(str(path['id']))
                 print(path['id'])
-                with open('train_data.txt', 'a+') as td:
+                with open('datasets/train_data.txt', 'a+') as td:
                     td.write(str(path) + '\n')
 
     with open('train_data.txt', 'r') as td:
         print(len(td.readlines()))
 
 if __name__ == '__main__':
-    choose_data('datasets/road/*')
+    # filter_data_by_choose_picture('datasets/xd_road/*')
+    filter_data_by_generate_road('datasets/ai_data.txt')

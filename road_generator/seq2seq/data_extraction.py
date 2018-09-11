@@ -1,16 +1,16 @@
 from matplotlib import pyplot as plt
+from math import cos, sin, pi
+train_url = 'datasets/train_data_init.txt'
+alphabet = 'abcdefghijklmnopqrstuvwxyz'
 
-train_url = 'train_data.txt'
-alphabet = 'abcdefghijklmnopq'
-
-def spin(point):
+def spin(angle, point):
     '''
         对点进行旋转30°
     :param point: tuple,point
     :return: tuple, point_30
     '''
-    cos_30 = 0.75 ** 0.5
-    sin_30 = 0.5
+    cos_30 = cos(angle / 180 * pi)
+    sin_30 = sin(angle / 180 * pi)
     distance = (point[0] ** 2 + point[1] **2) ** 0.5
     cos_a = point[0] / distance
     sin_a = point[1] / distance
@@ -36,7 +36,7 @@ with open(train_url, 'r') as td:
 
     # data statistics
     num = len(blocks.keys())
-    max_block = max(blocks.values())
+    max_block = min(11, max(blocks.values()))
     print(f'the num of blocks: {num}')
     print(f"the max of one block's designs: {max_block}")
 
@@ -61,36 +61,23 @@ with open(train_url, 'r') as td:
                             for k in range(avg):
                                 infos['id'] = str(infos['id']) + alphabet[i]
                                 for m in range(len(infos['block'])):
-                                    infos['block'][m] = spin(infos['block'][m])
+                                    infos['block'][m] = spin(30, infos['block'][m])
                                 for building in infos['buildings']:
                                     for n in range(len(building)):
-                                        building[n] = spin(building[n])
+                                        building[n] = spin(30, building[n])
                                 for p in range(len(infos['lines'])):
-                                    infos['lines'][p] = spin(infos['lines'][p])
-                                with open('train_data_1.txt', 'a+') as rd:
+                                    infos['lines'][p] = spin(30, infos['lines'][p])
+                                with open(train_url, 'a+') as rd:
                                     rd.write(str(infos) + '\n')
                                 blocks[item] += 1
                                 if blocks[item] >= max_block:
                                     break
                             break
-    with open('train_data.txt', 'r') as f:
+
+    # 数据验证
+    with open(train_url, 'r') as f:
         line_length = len(f.readlines())
-        if line_length == num * max_block:
+        if line_length >= num * max_block:
             print('rich success!')
         else:
             print(f'the num of dataset is {line_length}, data is not enough!')
-
-# num_dict = {}
-# for value in blocks.values():
-#     if value not in num_dict.keys():
-#         num_dict[value] = 1
-#     else:
-#         num_dict[value] += 1
-# key_list = []
-# num_list = []
-# for key in num_dict.keys():
-#     key_list.append(str(key))
-#     num_list.append(num_dict[key])
-# plt.bar(range(len(num_list)), num_list, color='r', tick_label=key_list)
-# plt.show()
-# print(num_list)
