@@ -1,4 +1,4 @@
-# leetcode-5 最长回文子串
+# 5 最长回文子串
 # manacher算法
 
 from time import time
