@@ -1,5 +1,4 @@
 import numpy as np
-from keras.models import Model
 from keras.utils import plot_model
 from keras.callbacks import TensorBoard
 from seq2seq.models import AttentionSeq2Seq
@@ -12,9 +11,10 @@ import os
 os.makedirs('model', exist_ok=True)
 os.makedirs('tensorboard', exist_ok=True)
 os.makedirs('datasets', exist_ok=True)
+os.makedirs('datasets/test_same_block_pictures', exist_ok=True)
 
 TRAIN_URL = 'datasets/train_data.txt'
-TEST_URL = 'datasets/test_data.txt'
+TEST_URL = 'datasets/test_data_same_block.txt'
 model_file = 'model/s2s.h5'
 
 def reset_endpoints(points):
@@ -54,7 +54,7 @@ def rotate(point, cos, sin):
 
 def re_rotate(point, cos, sin, center):
     '''
-
+        坐标逆时针旋转
     :param point:
     :param cos:
     :param sin:
@@ -64,10 +64,39 @@ def re_rotate(point, cos, sin, center):
     re_y = point[1] * cos + point[0] * sin + center[1]
     return [re_x, re_y]
 
+def sort_paths(endpoints):
+    '''
+        对点进行逆时针排序
+    :param endpoints: list of points
+    :return: sorted points
+    '''
+
+    # 4象限
+    x1 = []
+    x2 = []
+    x3 = []
+    x4 = []
+    for i in range(len(endpoints)):
+        if endpoints[i][0] > 0 and endpoints[i][1] > 0:
+            x1.append(endpoints[i])
+        elif endpoints[i][0] < 0 and endpoints[i][1] > 0:
+            x2.append(endpoints[i])
+        elif endpoints[i][0] < 0 and endpoints[i][1] < 0:
+            x3.append(endpoints[i])
+        elif endpoints[i][0] > 0 and endpoints[i][1] < 0:
+            x4.append(endpoints[i])
+
+    x1.sort(key=lambda x: (x[1] / x[0]))
+    x2.sort(key=lambda x: (x[1] / x[0]))
+    x3.sort(key=lambda x: (x[1] / x[0]))
+    x4.sort(key=lambda x: (x[1] / x[0]))
+
+    points = x1 + x2 + x3 + x4
+    return points
+
 class Seq2seq():
 
     def __init__(self):
-        # self.epochs = epochs
         self.latent_dim = 256
         self.max_encoder_length = 49
         self.max_decoder_length = 17
@@ -82,38 +111,6 @@ class Seq2seq():
             self.model.load_weights(model_file)
         else:
             print('Model needs to be trained.')
-
-    @staticmethod
-    def sort_paths(endpoints):
-        '''
-            对点进行逆时针排序
-        :param endpoints: list of points
-        :return: sorted points
-        '''
-
-        # 4象限
-        x1 = []
-        x2 = []
-        x3 = []
-        x4 = []
-        for i in range(len(endpoints)):
-            if endpoints[i][0] > 0 and endpoints[i][1] > 0:
-                x1.append(endpoints[i])
-            elif endpoints[i][0] < 0 and endpoints[i][1] > 0:
-                x2.append(endpoints[i])
-            elif endpoints[i][0] < 0 and endpoints[i][1] < 0:
-                x3.append(endpoints[i])
-            elif endpoints[i][0] > 0 and endpoints[i][1] < 0:
-                x4.append(endpoints[i])
-
-        x1.sort(key=lambda x: (x[1] / x[0]))
-        x2.sort(key=lambda x: (x[1] / x[0]))
-        x3.sort(key=lambda x: (x[1] / x[0]))
-        x4.sort(key=lambda x: (x[1] / x[0]))
-
-        points = x1 + x2 + x3 + x4
-
-        return points
 
     def set_x(self, url):
         """
@@ -138,10 +135,10 @@ class Seq2seq():
                 base_shapes = data['block']
                 self.multi_bases.append(base_shapes)
                 x_coords, y_coords = zip(*base_shapes)
-                x_min = min(x_coords)
-                x_max = max(x_coords)
-                y_min = min(y_coords)
-                y_max = max(y_coords)
+                x_min = 0
+                x_max = 250
+                y_min = 0
+                y_max = 250
                 slope.append([x_max - x_min, y_max - y_min])
                 inter.append([x_min, y_min])
 
@@ -154,24 +151,13 @@ class Seq2seq():
                     center_buildings.append([np.mean(x), np.mean(y)])
 
                 # 逆时针排序
-                center_buildings = self.sort_paths(center_buildings)
+                center_buildings = sort_paths(center_buildings)
 
                 # 对建筑进行归一化处理
                 for center in center_buildings:
                     center[0] = (center[0] - x_min) / (x_max - x_min)
                     center[1] = (center[1] - y_min) / (y_max - x_min)
                 inputs_data.append(center_buildings)
-
-                # # 对建筑进行外接 + 归一化处理
-                # self.buildings = data['buildings']
-                # center_buildings = []
-                # for building in self.buildings:
-                #     rect = cv2.minAreaRect(np.array(building, np.int32))
-                #     box = cv2.boxPoints(rect)
-                #     for i in range(4):
-                #         x = (box[i][0] - x_min) / (x_max - x_min)
-                #         y = (box[i][1] - y_min) / (y_max - y_min)
-                #         center_buildings.append([x, y])
 
         num = len(inputs_data)
         self.max_encoder_length = max([max([len(inputs) for inputs in inputs_data]), self.max_encoder_length])
@@ -203,16 +189,16 @@ class Seq2seq():
                 # 用于max_min归一化
                 base_shapes = data['block']
                 x_coords, y_coords = zip(*base_shapes)
-                x_min = min(x_coords)
-                x_max = max(x_coords)
-                y_min = min(y_coords)
-                y_max = max(y_coords)
+                x_min = 0
+                x_max = 250
+                y_min = 0
+                y_max = 250
 
                 # 对道路进行逆时针排序 + 归一化处理
                 endpoints = []
                 self.lines = data['lines']
                 # 逆时针排序
-                self.lines = self.sort_paths(self.lines)
+                self.lines = sort_paths(self.lines)
 
                 # 归一化处理
                 for path in self.lines:
@@ -244,7 +230,7 @@ class Seq2seq():
         for i in range(len(datasets)):
             for j in range(len(datasets[i])):
                 # 去除异常点
-                if datasets[i][j][0] <= 0.05 or datasets[i][j][1] <= 0.05:
+                if abs(datasets[i][j][0]) <= 0.01 or abs(datasets[i][j][1]) <= 0.01:
                     datasets[i][j][:] = 0
                 else:
                     # 缩放
@@ -256,7 +242,7 @@ class Seq2seq():
             encoder_data, slope, inter = self.set_x(data_url)
             decoder_data = self.set_y(data_url)
             self.model.fit(encoder_data, decoder_data, batch_size=8, epochs=epochs,
-                           callbacks=[TensorBoard(log_dir='tensorboard/seq_6')])
+                           callbacks=[TensorBoard(log_dir='tensorboard/seq')])
             self.model.save_weights(model_file)
         else:
             raise ValueError('data is not existing.')
@@ -271,7 +257,7 @@ class Seq2seq():
         result = self.model.predict(pre_data)
         return result
 
-    def data_post_process(self, points, buildings):
+    def data_post_process(self, points, buildings, list_of_adjusted_point=[]):
         '''
             道路数据后处理
         :param points: list,
@@ -280,9 +266,11 @@ class Seq2seq():
         '''
 
         label = 0
-        list_of_adjusted_point = []
+        list_of_adjusted_point = list_of_adjusted_point
+        k = 0
         for i in range(len(points) - 1):
             for building in buildings:
+                k += 1
                 rect = cv2.minAreaRect(np.array(building, np.int32))
                 box = cv2.boxPoints(rect)
                 center_x = sum([box[k][0] for k in range(4)]) / 4
@@ -334,10 +322,13 @@ class Seq2seq():
                     end_y = end_point[1]
 
                     # 增加新的点
-                    if abs(start_x) > radius_x and abs(end_x) > radius_x and abs(start_y) > radius_y and abs(end_y) > radius_y:
+                    if (abs(start_x) > radius_x and abs(end_x) > radius_x and abs(start_y) > radius_y and abs(end_y) > radius_y) \
+                            or (i in list_of_adjusted_point and abs(end_x) > radius_x and abs(end_y) > radius_y) \
+                            or (i+1 in list_of_adjusted_point and abs(start_x) > radius_x and abs(start_y) > radius_y)\
+                            or (i in list_of_adjusted_point and i+1 in list_of_adjusted_point):
                         print('add time!')
                         tmp += 1
-                        k = (end_y - start_y) / (end_x - start_x)
+                        k = (end_y - start_y) / (end_x - start_x) if end_x != start_x else 100
                         path = LineString([(start_x, start_y), (end_x, end_y)])
                         if k > 0:
                             if Point([-radius_x, radius_y]).distance(path) < Point([radius_x, -radius_y]).distance(path):
@@ -353,12 +344,13 @@ class Seq2seq():
 
                     # 调整点
                     else:
-                        ad_start_x = radius_x - abs(start_x) if radius_x - abs(start_x) > 0 else 10000
-                        ad_start_y = radius_y - abs(start_y) if radius_y - abs(start_y) > 0 else 10000
-                        ad_end_x = radius_x - abs(end_x) if radius_x - abs(end_x) > 0 else 10000
-                        ad_end_y = radius_y - abs(end_y) if radius_y - abs(end_y) > 0 else 10000
+                        print('adjusted time!')
+                        ad_start_x = radius_x - abs(start_x) if radius_x - abs(start_x) > 0 and i not in list_of_adjusted_point else 10000
+                        ad_start_y = radius_y - abs(start_y) if radius_y - abs(start_y) > 0 and i not in list_of_adjusted_point else 10000
+                        ad_end_x = radius_x - abs(end_x) if radius_x - abs(end_x) > 0 and i+1 not in list_of_adjusted_point else 10000
+                        ad_end_y = radius_y - abs(end_y) if radius_y - abs(end_y) > 0 and i+1 not in list_of_adjusted_point else 10000
                         label_min = min(ad_start_x, ad_start_y, ad_end_x, ad_end_y)
-                        if ad_start_x == label_min or ad_start_y == label_min:
+                        if i not in list_of_adjusted_point and label_min in (ad_start_x, ad_start_y):
                             if ad_start_x == label_min:
                                 tmp += 1
                                 if start_x < 0:
@@ -370,26 +362,26 @@ class Seq2seq():
                                 tmp += 1
                                 if start_y < 0:
                                     start_point = re_rotate([start_point[0], -radius_y - size], cos, sin, [center_x, center_y])
-
                                 else:
                                     start_point = re_rotate([start_point[0], radius_y + size], cos, sin, [center_x, center_y])
 
+                            list_of_adjusted_point.append(i)
                             return start_point, re_rotate(end_point, cos, sin, [center_x, center_y]), tmp
-                        else:
+
+                        elif i+1 not in list_of_adjusted_point and label_min in (ad_end_x, ad_end_y):
                             if ad_end_x == label_min:
                                 if end_x < 0:
                                     end_point = re_rotate([- radius_x - size, end_point[1]], cos, sin, [center_x, center_y])
-
                                 else:
                                     end_point = re_rotate([radius_x + size, end_point[1]], cos, sin, [center_x, center_y])
 
                             elif ad_end_y == label_min:
                                 if end_y < 0:
                                     end_point = re_rotate([end_point[0], -radius_y - size], cos, sin, [center_x, center_y])
-
                                 else:
                                     end_point = re_rotate([end_point[0], radius_y + size], cos, sin, [center_x, center_y])
 
+                            list_of_adjusted_point.append(i+1)
                             return re_rotate(start_point, cos, sin, [center_x, center_y]), end_point, tmp
 
                 # 点在建筑内
@@ -405,31 +397,19 @@ class Seq2seq():
                 # 道路经过建筑
                 line = LineString([points[i], points[i+1]])
                 while line.intersects(Polygon(building)):
-                    # ax = plt.gca()
-                    # GeoSeries(Polygon(building)).plot(ax=ax, color='red')
-                    # GeoSeries(line).plot(ax=ax, color='green')
-                    # ax.set_aspect(1)
-                    # # plt.axis('off')
-                    # plt.show()
                     points[i], points[i+1], tmp = adjust_outer_point(i, points[i], points[i+1], 1)
+                    label += tmp
                     if i == 0:
                         points[-1] = points[0]
                     if i+1 == len(points) - 1:
                         points[0] = points[-1]
                     line = LineString([points[i], points[i+1]])
-                    # ax = plt.gca()
-                    # GeoSeries(Polygon(building)).plot(ax=ax, color='red')
-                    # GeoSeries(line).plot(ax=ax, color='green')
-                    # ax.set_aspect(1)
-                    # # plt.axis('off')
-                    # plt.show()
-                    label += tmp
 
                 if label > 0:
                     print('again')
                     print(f'lable is : {label}')
-                    print(f'length is: {points}')
-                    self.data_post_process(points, buildings)
+                    # print(f'list_of_adjusted_point: {list_of_adjusted_point}')
+                    self.data_post_process(points, buildings, list_of_adjusted_point=list_of_adjusted_point)
         return points
 
     @staticmethod
@@ -452,19 +432,19 @@ class Seq2seq():
             building_shapes.append(Polygon(building))
 
         # 道路
-        # init_points = LineString(reset_endpoints(init_points))
         generator_points = LineString(generator_points)
 
         # 可视化
         ax = plt.gca()
         GeoSeries(base_shapes).plot(ax=ax, color='blue')
         GeoSeries(building_shapes).plot(ax=ax, color='red')
-        # GeoSeries(init_points).plot(ax=ax, color='green')
         GeoSeries(generator_points).plot(ax=ax, color='yellow')
         ax.set_aspect(1)
         plt.axis('off')
-        plt.savefig(f'datasets/test/{str(i)}.jpg')
+        # plt.show()
+        plt.savefig(f'datasets/test_same_block_pictures/{str(i)}.jpg')
         plt.close()
+
 
     def output_data(self, test_url, testing=False):
         '''
@@ -476,17 +456,19 @@ class Seq2seq():
         predict_data = self.predict(test_data)
         predict_paths = self.reset_data(predict_data, slope, inter)
         outputs = []
-        if testing:
-            line_data = self.set_y(test_url)
-            init_paths = self.reset_data(line_data, slope, inter)
+
         for i in range(len(predict_paths)):
             endpoints = reset_endpoints(predict_paths[i])
             predict_path = self.data_post_process(endpoints, self.multi_buildings[i])
             outputs.append(predict_path)
             print('data post process finished!')
-            self.show_picture(i, self.multi_bases[i], self.multi_buildings[i], predict_path)
+            self.show_picture(i, self.multi_bases[i], self.multi_buildings[i], endpoints)
+        if testing:
+            line_data = self.set_y(test_url)
+            init_paths = self.reset_data(line_data, slope, inter)
         return outputs
+
 if __name__ == '__main__':
     seq = Seq2seq()
-    # seq.train(TRAIN_URL, 200)
-    seq.output_data('datasets/test_one.txt')
+    # seq.train(TRAIN_URL, 100)
+    seq.output_data(TEST_URL, testing=False)
