@@ -1,4 +1,4 @@
-
+# leetcode 2
 
 # Definition for singly-linked list.
 # class ListNode(object):
