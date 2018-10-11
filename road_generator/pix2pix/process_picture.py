@@ -1,10 +1,9 @@
 #！ 图片后处理
 
-
+import numpy as np
 import cv2
 from glob import glob
 import os
-from ring_road import *
 from scipy.spatial import Voronoi
 from shapely.ops import unary_union, polygonize
 from shapely.geometry import LineString, Polygon, MultiPolygon, GeometryCollection

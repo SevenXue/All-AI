@@ -225,8 +225,8 @@ def visual_data_of_road(url, save=True):
             GeoSeries(building_shapes).plot(ax=ax, color='red')
             GeoSeries(road_shapes).plot(ax=ax, color='green')
             ax.set_aspect(1)
+            plt.axis('off')
             if save:
-                plt.axis('off')
                 plt.savefig(f'datasets/part_two_re/{part_id}.jpg')
             else:
                 plt.show()
