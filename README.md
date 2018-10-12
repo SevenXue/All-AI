@@ -5,8 +5,6 @@
 利用keras实现《attention is all your need》中的模型
 ### lstm
 使用keras的lstm层实现一个简单的LSTM模型。
-### road_generator
-使用pix2pix模型，seq2seq模型实现建筑道路自动化生成。
 ### rebuy_predict
 复购提醒：对用户数据进行etl，提取特征，使用GBDT建模，生成一个分类模型，判别用户是否会重复购买。
 ### Algorithm
