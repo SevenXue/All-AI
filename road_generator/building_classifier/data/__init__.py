@@ -1,1 +1,0 @@
-# data is stored at : xkool server/xkool-tech/road_generator/data

@@ -20,8 +20,6 @@ def manacher(s):
         if RL[i] + i - 1 > MaxRight:
             MaxRight = RL[i] + i - 1
             pos = i
-        # if RL[i] >= MaxLen:
-        #     pos = i
         MaxLen = max(MaxLen, RL[i])
 
     result = s[pos - MaxLen + 1:pos + MaxLen]
